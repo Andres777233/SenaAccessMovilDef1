@@ -43,10 +43,10 @@ private data class PestanaValidar(
 )
 
 private val PESTANAS = listOf(
-    PestanaValidar(Icons.Default.Keyboard, "PIN", "PIN de 6 dígitos que dicta el instructor en portería."),
+    PestanaValidar(Icons.Default.Keyboard, "PIN", "PIN de 4 dígitos de la excusa: lo genera el instructor para autorizar la salida."),
     PestanaValidar(Icons.Default.QrCodeScanner, "Excusa", "Escanea el QR del permiso del aprendiz para registrar su salida."),
     PestanaValidar(Icons.Default.QrCodeScanner, "Invitado", "Escanea el QR de un invitado. Sirve una sola vez y caduca a la hora."),
-    PestanaValidar(Icons.Default.QrCodeScanner, "Web", "Escanea el carnet del usuario o el código de entrada que generó en la web.")
+    PestanaValidar(Icons.Default.QrCodeScanner, "Web", "Escanea el carnet o digita el PIN de 6 dígitos que el usuario generó en la web.")
 )
 
 @Composable
@@ -126,9 +126,14 @@ fun VistaValidarUnificada(onBack: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(EspaciadoSena.sm))
 
-        EntradaSuave(indice = tab) {
-            ContenidoPestana(objetivo = tab) { pestana ->
-                when (pestana) {
+        // El peso va en EntradaSuave, que sí es hijo directo del Column; el
+        // contenido de la pestaña recibe el alto restante y puede hacer scroll.
+        // Una sola pestaña viva a la vez. Antes había AnimatedContent y las dos
+        // pestañas seguían compuestas durante la transición: dos cámaras
+        // bindeadas a la Activity y crash al pasar de "código web" a "invitado".
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            key(tab) {
+                when (tab) {
                     0 -> VistaValidarExcusa(onBack = onBack, mostrarCabecera = false)
                     1 -> EscanearQrExcusa(mostrarCabecera = false)
                     2 -> EscanearQrInvitado(onVolver = onBack, mostrarCabecera = false)

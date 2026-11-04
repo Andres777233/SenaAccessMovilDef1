@@ -90,6 +90,28 @@ data class PendientesDobleFactor(
     val challenge: RetoDobleFactor? = null
 )
 
+// Reenvío del código 2FA (POST /2fa/reenviar).
+data class PeticionReenviarCodigo(
+    @SerializedName("challenge_id") val challenge_id: String
+)
+
+data class RespuestaReenvioCodigo(
+    val message: String? = null,
+    @SerializedName("email_hint") val email_hint: String? = null,
+    @SerializedName("code_expires_at") val code_expires_at: String? = null,
+    @SerializedName("segundos_para_reenvio") val segundos_para_reenvio: Int? = null
+)
+
+// Versión publicada de la app Android (GET /app/version).
+data class RespuestaVersionApp(
+    @SerializedName("version_code") val version_code: Int? = null,
+    @SerializedName("version_name") val version_name: String? = null,
+    @SerializedName("min_version_code") val min_version_code: Int? = null,
+    @SerializedName("apk_url") val apk_url: String? = null,
+    val mensaje: String? = null,
+    val obligatorio: Boolean? = null
+)
+
 // (GET /2fa/estado/{id}). Solo devuelve access_token/user/role cuando quedó aprobado.
 data class EstadoVerificacion(
     val message: String? = null,
@@ -139,9 +161,12 @@ data class UsuarioApi(
     fun estaPendiente(): Boolean = estado_cuenta?.trim()?.lowercase() == "pendiente"
 
     // Invitado temporal (QR): nunca va a ambientes ni a dueños de equipos.
+    // El correo guest_* cubre cuentas viejas que quedaron con rol Aprendiz.
     fun esInvitado(): Boolean {
         val r = role?.rol_name?.trim()?.lowercase()
-        return r == "invitado" || r == "visitante" || r == "guest"
+        val correo = user_email?.trim()?.lowercase().orEmpty()
+        return r == "invitado" || r == "visitante" || r == "guest" ||
+            correo.startsWith("guest_")
     }
     // Jornada efectiva hoy (sábado especial si aplica).
     fun jornadaHoy(): String? {
@@ -273,6 +298,9 @@ data class PeticionRegistro(
     @SerializedName("user_program") val user_program: String,
     @SerializedName("user_documento_tipo") val user_documento_tipo: String,
     @SerializedName("user_telefono") val user_telefono: String? = null,
+    // Vinculación con la que nace la cuenta: "aprendiz" (por defecto) o
+    // "funcionario" (personal administrativo, sin ficha de formación).
+    @SerializedName("role") val role: String? = null,
     @SerializedName("user_jornada") val user_jornada: String? = null,
     @SerializedName("user_jornada_sabado") val user_jornada_sabado: String? = null
 )
@@ -296,7 +324,34 @@ data class RespuestaQrInvitado(
     val message: String? = null,
     val user: UsuarioSesion? = null,
     @SerializedName("qr_token") val qr_token: String? = null,
-    @SerializedName("qr_expires_at") val qr_expires_at: String? = null
+    @SerializedName("qr_expires_at") val qr_expires_at: String? = null,
+    // La visita dura 6 horas: se muestra en la pantalla del QR.
+    @SerializedName("horas_vigencia") val horas_vigencia: Int? = null
+)
+
+// Estado de la visita de un invitado (GET /guest/estado/{token}).
+// 'pendiente' = aún no entró, 'dentro' = ya entró (tiene QR de salida),
+// 'salida' = ya salió, 'expirado' = se cumplió el plazo de 6 horas.
+data class EstadoVisitaInvitado(
+    val estado: String? = null,
+    val nombre: String? = null,
+    @SerializedName("qr_token") val qr_token: String? = null,
+    @SerializedName("qr_expires_at") val qr_expires_at: String? = null,
+    @SerializedName("qr_salida") val qr_salida: String? = null,
+    @SerializedName("qr_salida_expires_at") val qr_salida_expires_at: String? = null,
+    @SerializedName("entrada_at") val entrada_at: String? = null,
+    @SerializedName("salida_at") val salida_at: String? = null,
+    @SerializedName("horas_vigencia") val horas_vigencia: Int? = null
+)
+
+// Respuesta al escanear un QR de invitado (entrada o salida de la visita).
+data class RespuestaVisitaInvitado(
+    val message: String? = null,
+    val user: UsuarioSesion? = null,
+    val estado: EstadoVisitaInvitado? = null,
+    @SerializedName("qr_salida") val qr_salida: String? = null,
+    @SerializedName("qr_salida_expires_at") val qr_salida_expires_at: String? = null,
+    val duplicado: Boolean? = null
 )
 
 // Datos enviados a POST /validate-guest-qr: el token contenido en el QR escaneado.
@@ -409,6 +464,23 @@ data class PeticionValidarPin(
 data class RespuestaValidarAcceso(
     @SerializedName("message") val message: String? = null,
     @SerializedName("duplicado") val duplicado: Boolean? = null
+)
+
+// Estado de la puerta (GET /acceso/estado): entrada_hoy evita que una Entrada
+// de otro día cuente como "estoy dentro"; dentro es el último movimiento.
+data class EstadoPuerta(
+    @SerializedName("entrada_hoy") val entrada_hoy: Boolean = false,
+    @SerializedName("dentro") val dentro: Boolean = false,
+    @SerializedName("ultimo") val ultimo: MovimientoPuerta? = null
+) {
+    val estaDentroHoy: Boolean get() = entrada_hoy && dentro
+}
+
+data class MovimientoPuerta(
+    @SerializedName("id_ingreso") val id_ingreso: Int? = null,
+    @SerializedName("tipo") val tipo: String? = null,
+    @SerializedName("fecha") val fecha: String? = null,
+    @SerializedName("lugar") val lugar: String? = null
 )
 
 // Código de entrada generado en la web (QR + PIN) para que portería lo valide.
